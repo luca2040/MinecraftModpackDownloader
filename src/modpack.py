@@ -2,13 +2,17 @@ from print_color import print
 import zipfile
 import json
 import os
+import sys
+import time
 import concurrent.futures
 import threading
 
 from cursemaven import mod_name_from_id, download_mod
 
 MANIFEST_FILE = "manifest.json"
-RETRIES = 5
+
+NUM_RETRIES = 5
+RETRY_DELAY = 2
 
 
 def is_modpack_valid(modpack_path: str) -> bool:
@@ -42,55 +46,43 @@ def get_minecraft_version(modpack_content) -> str:
 
 
 def check_and_download_resource(
-    idx, file, resourcepack_folder, mods_folder
-) -> bool:  # False means retry
-    project_id = file.get("projectID", None)
-    file_id = file.get("fileID", None)
-
-    if project_id is None and file_id is None:
-        return True
-
-    mod_name = mod_name_from_id(project_id, file_id)
-    if not mod_name:
-        print(
-            f"Cannot find {project_id}:{file_id}",
-            tag="Warning",
-            tag_color="y",
-            color="m",
-        )
-        return True
-
+    idx, project_id, file_id, mod_name, resourcepack_folder, mods_folder
+) -> bool:  # True means that there is no need to retry
     is_texturepack = mod_name.endswith(".zip")  # Not the best check, but it works
     target_folder = resourcepack_folder if is_texturepack else mods_folder
     download_filepath = os.path.join(target_folder, mod_name)
 
     downloaded = download_mod(mod_name, download_filepath, project_id, file_id)
-
-    if downloaded:
-        print(
-            mod_name,
-            tag=f"Downloaded {idx + 1}",
-            tag_color="g",
-            color="w",
-        )
-        return True
-    else:
-        print(
-            mod_name,
-            tag=f"Download error {idx + 1}",
-            tag_color="y",
-            color="w",
-        )
-        return False
+    return downloaded
 
 
-def download_wrapper(args):
+def download_wrapper(args) -> str | None:
     idx, file, resourcepack_folder, mods_folder = args
 
-    for _ in range(RETRIES):
-        skip = check_and_download_resource(idx, file, resourcepack_folder, mods_folder)
-        if skip:
-            break
+    project_id = file.get("projectID", None)
+    file_id = file.get("fileID", None)
+
+    if project_id is None or file_id is None:
+        return
+
+    mod_name = mod_name_from_id(project_id, file_id)
+    if not mod_name:
+        return f"{project_id}:{file_id}"
+
+    for _ in range(NUM_RETRIES):
+        success = check_and_download_resource(
+            idx=idx,
+            project_id=project_id,
+            file_id=file_id,
+            mod_name=mod_name,
+            resourcepack_folder=resourcepack_folder,
+            mods_folder=mods_folder,
+        )
+        if success:
+            return
+        time.sleep(RETRY_DELAY)
+
+    return mod_name
 
 
 def multithreaded_download(files, resourcepack_folder, mods_folder):
@@ -98,21 +90,30 @@ def multithreaded_download(files, resourcepack_folder, mods_folder):
         (idx, file, resourcepack_folder, mods_folder) for idx, file in enumerate(files)
     ]
     total_files = len(files)
-
     print_lock = threading.Lock()
 
-    def print_progress(print_idx):
-        with print_lock:
-            current_percent = 100.0 * (print_idx + 1) / total_files
-            print(f"{current_percent:.2f}%", tag="Progress", color="w", tag_color="w")
+    def print_progress(print_idx) -> None:
+        p = print_idx / total_files
+        i = int(p * 40)
+        sys.stdout.write("\r")
+        sys.stdout.write("[%-40s] %.2f%%" % ("=" * i, p * 100))
+        sys.stdout.flush()
 
-    max_workers = None  # os.cpu_count() * 5 by default
+    error_list = []
+
+    max_workers = (os.cpu_count() or 10) * 5
     idx = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(download_wrapper, arg) for arg in files_args]
-        for _ in concurrent.futures.as_completed(futures):
-            print_progress(idx)
-            idx = idx + 1
+        for future in concurrent.futures.as_completed(futures):
+            with print_lock:
+                eventual_error = future.result()
+                if eventual_error:
+                    error_list.append(eventual_error)
+                idx = idx + 1
+                print_progress(idx)
+
+    return error_list
 
 
 def extract_modpack(modpack_path: str, extraction_path: str) -> None:
@@ -124,7 +125,7 @@ def extract_modpack(modpack_path: str, extraction_path: str) -> None:
                 manifest = json.loads(json_str)
     except:
         print("Error parsing manifest file", tag="Error", tag_color="r", color="r")
-        exit()
+        return
 
     overrides = manifest.get("overrides", None)
     minecraft_version = get_minecraft_version(manifest)
@@ -138,9 +139,18 @@ def extract_modpack(modpack_path: str, extraction_path: str) -> None:
     os.makedirs(mods_folder, exist_ok=True)
     os.makedirs(resourcepack_folder, exist_ok=True)
 
-    multithreaded_download(
+    print("Downloading mods", color="c", format="bold")
+    errors = multithreaded_download(
         files, resourcepack_folder=resourcepack_folder, mods_folder=mods_folder
     )
 
     print()
     print("Download finished", color="g", format="bold")
+    if errors:
+        print("Errors downloading:", color="r")
+        for error in errors:
+            print("\t" + error)
+
+    if overrides is not None:
+        print()
+        print("Extracting overrides", color="c", format="bold")

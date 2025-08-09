@@ -7,7 +7,7 @@ if __name__ == "__main__":
     print("Curseforge modpack downloader", color="green", format="underline")
     print()
 
-    print("Select the modpack ZIP file", color="c", format="bold")
+    print("Select the modpack ZIP file", color="m", format="bold")
     modpack_path = file_input_dialog(extension="zip")
     if not modpack_path:
         exit()
@@ -20,7 +20,7 @@ if __name__ == "__main__":
         exit()
 
     print(
-        "Select the path where the modpack will be downloaded", color="c", format="bold"
+        "Select the path where the modpack will be downloaded", color="m", format="bold"
     )
     extraction_path = file_input_dialog(folder_dialog=True)
     if not extraction_path:
