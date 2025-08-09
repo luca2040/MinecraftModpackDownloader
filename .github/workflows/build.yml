@@ -62,6 +62,12 @@ jobs:
           name: ModpackDownloader-windows-latest
           path: ./release-artifacts/windows
 
+      - name: Rename release artifacts per os
+        run: |
+          mv ./release-artifacts/ubuntu/ModpackDownloader ./release-artifacts/ubuntu/ModpackDownloader-linux
+          mv ./release-artifacts/macos/ModpackDownloader ./release-artifacts/macos/ModpackDownloader-macos
+          mv ./release-artifacts/windows/ModpackDownloader.exe ./release-artifacts/windows/ModpackDownloader-windows.exe
+
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v1
@@ -72,6 +78,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./release-artifacts/ubuntu/ModpackDownloader
-            ./release-artifacts/macos/ModpackDownloader
-            ./release-artifacts/windows/ModpackDownloader.exe
+            ./release-artifacts/ubuntu/ModpackDownloader-linux
+            ./release-artifacts/macos/ModpackDownloader-macos
+            ./release-artifacts/windows/ModpackDownloader-windows.exe
