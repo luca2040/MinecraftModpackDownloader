@@ -8,6 +8,7 @@ import concurrent.futures
 import threading
 
 from cursemaven import mod_name_from_id, download_mod
+from utils import extract_zip_subfolder
 
 MANIFEST_FILE = "manifest.json"
 
@@ -154,3 +155,19 @@ def extract_modpack(modpack_path: str, extraction_path: str) -> None:
     if overrides is not None:
         print()
         print("Extracting overrides", color="c", format="bold")
+        extract_zip_subfolder(
+            zip_path=modpack_path, subfolder=overrides, dest_dir=extraction_path
+        )
+        print("Overrides extracted", color="g", format="bold")
+
+    readme_path = os.path.join(extraction_path, "README_MODPACK.txt")
+    readme_str = f"""{modpack_name} - {modpack_version} by {modpack_author}
+
+Minecraft {minecraft_version}
+Total resources (mods and resourcepacks): {len(files)}"""
+
+    with open(readme_path, "w") as readme_file:
+        readme_file.write(readme_str)
+
+    print()
+    print("Modpack successfully downloaded", color="g", format="bold")
