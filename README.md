@@ -10,6 +10,9 @@ Modpacks do not contain the actual mod files into their zip file, but instead th
 <br/>This program takes all the mod's IDs and downloads them from the [cursemaven](https://cursemaven.com) repository, then it takes all the custom overrides from the pack's zip and extracts them directly in the extraction folder.
 <br/>At the end, the program creates a `README_MODPACK.txt` that contains the pack's information and the required minecraft + loader version to run it.
 
+>[!NOTE]
+>In some rare cases, some mods listed in the pack might not be found in the Maven repository. Usually this won’t affect the pack’s overall functionality. But if there are any problems, those missing mods can typically be downloaded manually.
+
 ## Usage
 - Run the program.
 - You will be prompted to select the modpack ZIP file.
