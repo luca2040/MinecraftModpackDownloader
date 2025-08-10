@@ -1,10 +1,13 @@
 from print_color import print
 
 import sys
-from utils import file_input_dialog, wait_for_input
-from modpack import is_modpack_valid, extract_modpack
+from utils import file_input_dialog, wait_for_input, set_windows_dpi_awareness
+from modpack import is_modpack_valid
+from modpack_download import extract_modpack
 
 if __name__ == "__main__":
+    set_windows_dpi_awareness()  # Get correct dialog window scaling in windows
+
     print("Curseforge modpack downloader", color="green", format="underline")
     print()
 

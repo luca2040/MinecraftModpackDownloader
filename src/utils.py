@@ -1,8 +1,20 @@
 from pathlib import Path
 import os
+import sys
+import ctypes
 import zipfile
 import tkinter as tk
 from tkinter import filedialog
+
+
+def set_windows_dpi_awareness():
+    """Sets the DPI scaling on windows.
+    Safely detects if the current platform is not windows."""
+    if sys.platform == "win32":
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except:
+            pass
 
 
 def file_input_dialog(extension: str | None = None, folder_dialog: bool = False) -> str:
@@ -34,9 +46,8 @@ def file_input_dialog(extension: str | None = None, folder_dialog: bool = False)
         filename = filedialog.askdirectory(parent=root)
     else:
         assert extension is not None
-        filename = filedialog.askopenfilename(
-            parent=root, filetypes=[("File", extension)]
-        )
+        ext = extension if extension.startswith("*") else f"*{extension}"
+        filename = filedialog.askopenfilename(parent=root, filetypes=[("File", ext)])
 
     root.destroy()
 
@@ -72,7 +83,6 @@ def extract_zip_subfolder(zip_path: str, subfolder: str, dest_dir: str) -> None:
 
 
 def wait_for_input() -> None:
-    """Simple function that asks the user to press enter to close the program, and waits for it.
-    """
+    """Simple function that asks the user to press enter to close the program, and waits for it."""
     print()
     input("Press enter to close the program")
