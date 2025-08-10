@@ -1,3 +1,4 @@
+from typing import Dict
 from print_color import print
 import zipfile
 import json
@@ -17,17 +18,30 @@ RETRY_DELAY = 2
 
 
 def is_modpack_valid(modpack_path: str) -> bool:
+    """Checks if a modpack is valid
+
+    Args:
+        modpack_path (str): The modpack's ZIP file path
+
+    Returns:
+        bool: True if the pack is valid, false otherwise
+    """
     try:
         with zipfile.ZipFile(modpack_path, "r") as z:
-            if MANIFEST_FILE in z.namelist():
-                return True
+            return MANIFEST_FILE in z.namelist()
     except:
         return False
 
-    return False
 
+def get_minecraft_version(modpack_content: Dict) -> str:
+    """Gets the minecraft version for the given manifest dict
 
-def get_minecraft_version(modpack_content) -> str:
+    Args:
+        modpack_content (Dict): The manifest json file loaded as a Python dict
+
+    Returns:
+        str: The minecraft version as "version - loader id"
+    """
     minecraft = modpack_content.get("minecraft", None)
     if not minecraft:
         return ""
@@ -47,7 +61,7 @@ def get_minecraft_version(modpack_content) -> str:
 
 
 def check_and_download_resource(
-    idx, project_id, file_id, mod_name, resourcepack_folder, mods_folder
+    project_id, file_id, mod_name, resourcepack_folder, mods_folder
 ) -> bool:  # True means that there is no need to retry
     is_texturepack = mod_name.endswith(".zip")  # Not the best check, but it works
     target_folder = resourcepack_folder if is_texturepack else mods_folder
@@ -72,7 +86,6 @@ def download_wrapper(args) -> str | None:
 
     for _ in range(NUM_RETRIES):
         success = check_and_download_resource(
-            idx=idx,
             project_id=project_id,
             file_id=file_id,
             mod_name=mod_name,
@@ -160,14 +173,19 @@ def extract_modpack(modpack_path: str, extraction_path: str) -> None:
         )
         print("Overrides extracted", color="g", format="bold")
 
-    readme_path = os.path.join(extraction_path, "README_MODPACK.txt")
-    readme_str = f"""{modpack_name} - {modpack_version} by {modpack_author}
+    modpack_description = f"{modpack_name} - {modpack_version}"
+    if modpack_author:
+        modpack_description += f" by {modpack_author}"
 
-Minecraft {minecraft_version}
-Total resources (mods and resourcepacks): {len(files)}"""
+    readme_path = os.path.join(extraction_path, "README_MODPACK.txt")
+    readme_contents = (
+        f"{modpack_description}\n\n"
+        f"Minecraft {minecraft_version}\n"
+        f"Total resources (mods, resourcepacks and shaders) downloaded: {len(files)}"
+    )
 
     with open(readme_path, "w") as readme_file:
-        readme_file.write(readme_str)
+        readme_file.write(readme_contents)
 
     print()
     print("Modpack successfully downloaded", color="g", format="bold")
