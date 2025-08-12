@@ -54,6 +54,21 @@ def file_input_dialog(extension: str | None = None, folder_dialog: bool = False)
     return filename
 
 
+def load_file_from_zip(zip_path: str, file_in_zip: str) -> bytes:
+    """Loads a file from a ZIP file
+
+    Args:
+        zip_path (str): Path to the ZIP file
+        file_in_zip (str): Path to the file in the ZIP, relative to it.
+
+    Returns:
+        bytes: The loaded file
+    """
+    with zipfile.ZipFile(zip_path, "r") as z:
+        with z.open(file_in_zip) as f:
+            return f.read()
+
+
 def extract_zip_subfolder(zip_path: str, subfolder: str, dest_dir: str) -> None:
     """Extracts a folder thats inside a ZIP file to a folder on disk.
     Used to extract the overrides folder from the modpack's ZIP to the output path.
@@ -80,6 +95,21 @@ def extract_zip_subfolder(zip_path: str, subfolder: str, dest_dir: str) -> None:
 
                 with z.open(member) as source, open(target_path, "wb") as target:
                     target.write(source.read())
+
+
+def print_progress(current_idx: int, total_len: int) -> None:
+    """Prints a progress bar on the current line, overwriting what was there before.
+    Can be called consecutively to make the bar progress without needing a new line.
+
+    Args:
+        current_idx (int): The current iteration index
+        total_len (int): The number of iterations
+    """
+    p = current_idx / total_len
+    i = int(p * 40)
+    sys.stdout.write("\r")
+    sys.stdout.write("[%-40s] %.2f%%" % ("=" * i, p * 100))
+    sys.stdout.flush()
 
 
 def wait_for_input() -> None:

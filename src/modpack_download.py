@@ -1,109 +1,116 @@
+from typing import List
 from print_color import print
 import os
 import sys
 import time
 import concurrent.futures
-import threading
 
 from modpack import Modpack
-from cursemaven import mod_name_from_id, download_mod
-from utils import extract_zip_subfolder
+from utils import extract_zip_subfolder, print_progress
+from mod import mod_type_names_map, mod_type_color_map
 
 
-NUM_RETRIES = 5
-RETRY_DELAY = 2
+NUM_RETRIES = 5  # Maximum number of download retires
+RETRY_DELAY = 2  # Delay between retries in seconds
 
 
-def check_and_download_resource(
-    project_id, file_id, mod_name, resourcepack_folder, mods_folder
-) -> bool:  # True means that there is no need to retry
-    is_texturepack = mod_name.endswith(".zip")  # Not the best check, but it works
-    target_folder = resourcepack_folder if is_texturepack else mods_folder
-    download_filepath = os.path.join(target_folder, mod_name)
+def mod_download(modpack: Modpack, mod_index: int) -> int | None:
+    """Tries to download a mod from the modpack.
 
-    downloaded = download_mod(mod_name, download_filepath, project_id, file_id)
-    return downloaded
+    Args:
+        modpack (Modpack): The Modpack instance
+        mod_index (int): The mod index
 
-
-def download_wrapper(args) -> str | None:
-    idx, file, resourcepack_folder, mods_folder = args
-
-    project_id = file.get("projectID", None)
-    file_id = file.get("fileID", None)
-
-    if project_id is None or file_id is None:
-        return
-
-    mod_name = mod_name_from_id(project_id, file_id)
-    if not mod_name:
-        return f"{project_id}:{file_id}"
+    Returns:
+        int | None: None if the mod was successfully downloaded, otherwise the mod's index
+    """
+    exists = modpack.request_filename(mod_index)
+    if not exists:
+        return mod_index
 
     for _ in range(NUM_RETRIES):
-        success = check_and_download_resource(
-            project_id=project_id,
-            file_id=file_id,
-            mod_name=mod_name,
-            resourcepack_folder=resourcepack_folder,
-            mods_folder=mods_folder,
-        )
+        success = modpack.download_resource(mod_index)
         if success:
-            return
+            return None
+
         time.sleep(RETRY_DELAY)
 
-    return mod_name
+    return mod_index
 
 
-def multithreaded_download(files, resourcepack_folder, mods_folder):
-    files_args = [
-        (idx, file, resourcepack_folder, mods_folder) for idx, file in enumerate(files)
-    ]
-    total_files = len(files)
-    print_lock = threading.Lock()
+def multithreaded_download(modpack: Modpack) -> List[int]:
+    """Downloads concurrently all the mods in the modpack.
 
-    def print_progress(print_idx) -> None:
-        p = print_idx / total_files
-        i = int(p * 40)
-        sys.stdout.write("\r")
-        sys.stdout.write("[%-40s] %.2f%%" % ("=" * i, p * 100))
-        sys.stdout.flush()
+    Args:
+        modpack (Modpack): The Modpack instance
 
-    error_list = []
+    Returns:
+        List[int]: A list containing the indices of each mod that failed the download
+    """
+    error_list: List[int] = []
 
-    max_workers = (os.cpu_count() or 10) * 5
-    idx = 0
+    max_workers = (os.cpu_count() or 1) * 5
+    progress_idx = 0
+    modpack_len = len(modpack)
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(download_wrapper, arg) for arg in files_args]
-        for future in concurrent.futures.as_completed(futures):
-            with print_lock:
-                eventual_error = future.result()
-                if eventual_error:
-                    error_list.append(eventual_error)
-                idx = idx + 1
-                print_progress(idx)
+        submits = [
+            executor.submit(mod_download, modpack, idx) for idx, _ in enumerate(modpack)
+        ]
+
+        for completed in concurrent.futures.as_completed(submits):
+            eventual_error: int | None = completed.result()
+            if eventual_error is not None:
+                error_list.append(eventual_error)
+
+            progress_idx = progress_idx + 1
+            print_progress(progress_idx, modpack_len)
 
     return error_list
 
 
 def extract_modpack(modpack_path: str, extraction_path: str) -> None:
+    """Extracts the modpack to the given folder.
+
+    Args:
+        modpack_path (str): The path to the modpack's ZIP file
+        extraction_path (str): The path to the folder where the modpack will be extracted to
+    """
     modpack = Modpack(modpack_path, extraction_path)
 
     if not modpack.load_modpack():
-        print("Error parsing manifest file", tag="Error", tag_color="r", color="r")
+        print("Error loading the modpack", tag="Error", tag_color="r", color="r")
         return
 
     print("Downloading mods", color="c", format="bold")
-    errors = multithreaded_download(
-        modpack.files,
-        resourcepack_folder=modpack.resourcepack_folder,
-        mods_folder=modpack.mods_folder,
-    )
+    error_indices = multithreaded_download(modpack)
 
     print()
     print("Download finished", color="g", format="bold")
-    if errors:
-        print("Errors downloading:", color="r")
-        for error in errors:
-            print("\t" + error)
+    if error_indices:
+        total = len(modpack)
+        failed = len(error_indices)
+        err_percent = failed / total * 100
+
+        print(
+            f"Errors downloading {failed} resources out of {total} "
+            f"({err_percent:.1f}%):",
+            color="r",
+        )
+
+        for error_idx in error_indices:
+            mod_element = modpack[error_idx]
+            name_str: str = (
+                mod_element.view_name
+                or f"{mod_element.project_id}:{mod_element.file_id}"
+            )
+
+            tag_str = mod_type_names_map[mod_element.file_type]
+            tag_col = mod_type_color_map[mod_element.file_type]
+
+            sys.stdout.write("    ")
+            sys.stdout.flush()
+            print(" " + name_str, tag=tag_str, tag_color=tag_col, color="w")
 
     if modpack.overrides is not None:
         print()
@@ -121,7 +128,7 @@ def extract_modpack(modpack_path: str, extraction_path: str) -> None:
     readme_contents = (
         f"{modpack_description}\n\n"
         f"Minecraft {modpack.minecraft_version}\n"
-        f"Total resources (mods, resourcepacks and shaders) downloaded: {len(modpack.files)}"
+        f"Total resources (mods, resourcepacks and shaders) downloaded: {len(modpack.mods)}"
     )
 
     with open(readme_path, "w") as readme_file:

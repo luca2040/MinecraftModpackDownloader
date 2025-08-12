@@ -1,9 +1,15 @@
-from typing import Dict
-import os
+from typing import Dict, Iterator, List
 import zipfile
+import os
 import json
 
+from utils import load_file_from_zip
+from cursemaven import mod_name_from_id, download_mod
+from modlist import Modlist
+from mod import ModElement, ModType
+
 MANIFEST_FILE = "manifest.json"
+MODLIST_FILE = "modlist.html"
 
 
 def is_modpack_valid(modpack_path: str) -> bool:
@@ -68,11 +74,17 @@ class Modpack:
         self.modpack_name: str = ""
         self.modpack_version: str = ""
         self.modpack_author: str = ""
-        self.files: Dict | None = None
+        self.mods: List[ModElement] = []
 
         self.mods_folder: str = os.path.join(self.output_path, "mods")
         self.resourcepack_folder: str = os.path.join(self.output_path, "resourcepacks")
         self.shaderpack_folder: str = os.path.join(self.output_path, "shaderpacks")
+
+        self.folder_map: Dict[ModType, str] = {
+            ModType.MOD: self.mods_folder,
+            ModType.RESOURCEPACK: self.resourcepack_folder,
+            ModType.SHADERPACK: self.shaderpack_folder,
+        }
 
     def load_modpack(self) -> bool:
         """Try loading the modpack.
@@ -81,23 +93,98 @@ class Modpack:
             bool: True if the pack has been loaded successfully, False otherwise.
         """
         try:
-            with zipfile.ZipFile(self.modpack_path, "r") as z:
-                with z.open(MANIFEST_FILE) as f:
-                    json_bytes = f.read()
-                    json_str = json_bytes.decode("utf-8")
-                    manifest = json.loads(json_str)
+            json_bytes = load_file_from_zip(self.modpack_path, MANIFEST_FILE)
+            json_str = json_bytes.decode("utf-8")
+            manifest = json.loads(json_str)
         except:
             return False
+
+        modlist = Modlist(self.modpack_path, MODLIST_FILE)
 
         self.overrides: str | None = manifest.get("overrides", None)
         self.minecraft_version: str = get_minecraft_version(manifest)
         self.modpack_name: str = manifest.get("name", "")
         self.modpack_version: str = manifest.get("version", "")
         self.modpack_author: str = manifest.get("author", "")
-        self.files: Dict | None = manifest.get("files", None)
+
+        files: List[Dict] = manifest.get("files", [])
+        use_modlist: bool = len(modlist) == len(files)
+        for idx, file in enumerate(files):
+            proj_id = file.get("projectID")
+            file_id = file.get("fileID")
+
+            if proj_id is not None and file_id is not None:
+                mod_element = ModElement(proj_id, file_id)
+
+                if use_modlist:
+                    modlist_element = modlist[idx]
+                    assert modlist_element is not None
+
+                    mod_element.view_name = modlist_element["name"]
+                    mod_element.curseforge_url = modlist_element["url"]
+                    mod_element.file_type = modlist_element["type"]
+
+                self.mods.append(mod_element)
 
         os.makedirs(self.mods_folder, exist_ok=True)
         os.makedirs(self.resourcepack_folder, exist_ok=True)
         os.makedirs(self.shaderpack_folder, exist_ok=True)
 
         return True
+
+    def __getitem__(self, idx: int):
+        return self.mods[idx]
+
+    def __len__(self) -> int:
+        return len(self.mods)
+
+    def __iter__(self) -> Iterator[ModElement]:
+        return iter(self.mods)
+
+    def request_filename(self, mod_index: int) -> bool:
+        """Requests from the repo the mod's filename, to also check if it exists in there,
+
+        Args:
+            mod_index (int): The mod index
+
+        Returns:
+            bool: True if the mod exists in the repo, False otherwise
+        """
+        mod_element: ModElement = self[mod_index]
+
+        filename: str | None = mod_name_from_id(
+            mod_element.project_id, mod_element.file_id
+        )
+        if not filename:
+            return False
+
+        mod_element.filename = filename
+        return True
+
+    def download_resource(self, mod_index: int) -> bool:
+        """Downloads the resource (mod or whatever) indicated by the index to its folder.
+
+        Args:
+            mod_index (int): The mod index
+
+        Returns:
+            bool: True if the mod was successfully downloaded, False otherwise.
+        """
+
+        mod_element: ModElement = self[mod_index]
+
+        target_folder = self.folder_map.get(mod_element.file_type)
+        if target_folder is None:  # If its the default file type try to guess it
+            is_texturepack = mod_element.filename.endswith(".zip")
+            target_folder = (
+                self.resourcepack_folder if is_texturepack else self.mods_folder
+            )
+
+        download_filepath = os.path.join(target_folder, mod_element.filename)
+
+        return download_mod(
+            mod_element.filename,
+            download_filepath,
+            mod_element.project_id,
+            mod_element.file_id,
+        )
