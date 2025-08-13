@@ -6,6 +6,8 @@ from print_color import print
 from utils import ask_yes_no
 from suppress_std import SuppressStd
 import webbrowser
+from pathlib import Path
+from urllib.parse import quote
 
 
 html_download_template = """
@@ -102,4 +104,6 @@ def ask_download_list(modpack: Modpack, error_list: List[int]) -> None:
     with open(modpack.download_html_path, "w", encoding="utf-8") as f:
         f.write(rendered_html)
     with SuppressStd():
-        webbrowser.open(modpack.download_html_path)
+        html_abs_path = Path(modpack.download_html_path).resolve()
+        file_url = "file://" + quote(str(html_abs_path.as_posix()))
+        webbrowser.open(file_url)
