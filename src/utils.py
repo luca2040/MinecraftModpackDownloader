@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import sys
+import platform
 import ctypes
 import zipfile
 import tkinter as tk
@@ -12,7 +13,7 @@ from print_color.print_color import Color as color_typing
 def set_windows_dpi_awareness():
     """Sets the DPI scaling on windows.
     Safely detects if the current platform is not windows."""
-    if sys.platform == "win32":
+    if platform.system() == "Windows":
         try:
             ctypes.windll.shcore.SetProcessDpiAwareness(1)
         except:

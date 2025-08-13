@@ -8,6 +8,8 @@ from suppress_std import SuppressStd
 import webbrowser
 from pathlib import Path
 from urllib.parse import quote
+import platform
+import os
 
 
 html_download_template = """
@@ -96,14 +98,28 @@ def ask_download_list(modpack: Modpack, error_list: List[int]) -> None:
     template = Template(html_download_template)
     rendered_html = template.render(
         elements=render_list,
-        mods_path=modpack.mods_folder,
-        resource_path=modpack.resourcepack_folder,
-        shaders_path=modpack.shaderpack_folder,
+        mods_path=os.path.normpath(modpack.mods_folder),
+        resource_path=os.path.normpath(modpack.resourcepack_folder),
+        shaders_path=os.path.normpath(modpack.shaderpack_folder),
     )
 
     with open(modpack.download_html_path, "w", encoding="utf-8") as f:
         f.write(rendered_html)
-    with SuppressStd():
-        html_abs_path = Path(modpack.download_html_path).resolve()
+
+    system = platform.system()
+    html_abs_path = Path(modpack.download_html_path).resolve()
+
+    # The situation here is very broken
+    # On Macos if webbrowser.open is called without file:// then it wont even consider it
+    # While if i use file:// then Windows will ignore the default browser and use that Edge shit (Because without file:// the browser detection is done by webbrowser)
+    # Also, on Windows it crashes using SuppressStd, but that is needed on Linux otherwise Firefox will fill the console with its logs
+
+    # This solution may not be the best but it works
+    
+    if system in ("Darwin", "Linux"):  # Macos or Linux
         file_url = "file://" + quote(str(html_abs_path.as_posix()))
-        webbrowser.open(file_url)
+        with SuppressStd():
+            webbrowser.open(file_url)
+
+    else:  # Windows
+        webbrowser.open(str(html_abs_path))
