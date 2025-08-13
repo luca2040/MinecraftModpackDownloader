@@ -5,6 +5,8 @@ import ctypes
 import zipfile
 import tkinter as tk
 from tkinter import filedialog
+from print_color import print
+from print_color.print_color import Color as color_typing
 
 
 def set_windows_dpi_awareness():
@@ -110,6 +112,61 @@ def print_progress(current_idx: int, total_len: int) -> None:
     sys.stdout.write("\r")
     sys.stdout.write("[%-40s] %.2f%%" % ("=" * i, p * 100))
     sys.stdout.flush()
+
+
+def check_yes_no(string: str) -> bool:
+    """Check if a string is either yes, no, y or n.
+
+    Args:
+        string (str): The input string
+
+    Returns:
+        bool: True if the string is one of them, False otherwise
+    """
+    if len(string) < 1:
+        return False
+
+    return string[0] == "y" or string[0] == "n"
+
+
+def is_no(string: str) -> bool:
+    """Checks if the input string is a no or a n.
+    Used to let the user input both no and n.
+
+    Args:
+        string (str): The input string
+
+    Returns:
+        bool: True if the string is a no, False otherwise
+    """
+    if len(string) < 1:
+        return False
+
+    return string[0] == "n"
+
+
+def ask_yes_no(message: str, color: color_typing) -> bool:
+    """Asks the user the message, and checks if the response is yes or no.
+
+    Args:
+        message (str): The message to print
+        color (color_typing): The message color
+
+    Returns:
+        bool: True if yes, False if no
+    """
+    print(
+        message,
+        color=color,
+    )
+
+    read_str: str = ""
+    while not check_yes_no(read_str):
+        read_str = input()
+
+    if is_no(read_str):
+        return False
+    return True
 
 
 def wait_for_input() -> None:

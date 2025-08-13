@@ -8,10 +8,13 @@ import concurrent.futures
 from modpack import Modpack
 from utils import extract_zip_subfolder, print_progress
 from mod import mod_type_names_map, mod_type_color_map
+from download_list import ask_download_list
 
 
 NUM_RETRIES = 5  # Maximum number of download retires
 RETRY_DELAY = 2  # Delay between retries in seconds
+
+README_NAME = "MODPACK_DOWNLOAD_README.txt"
 
 
 def mod_download(modpack: Modpack, mod_index: int) -> int | None:
@@ -69,7 +72,7 @@ def multithreaded_download(modpack: Modpack) -> List[int]:
     return error_list
 
 
-def extract_modpack(modpack_path: str, extraction_path: str) -> None:
+def extract_modpack(modpack_path: str, extraction_path: str) -> Modpack | None:
     """Extracts the modpack to the given folder.
 
     Args:
@@ -112,6 +115,8 @@ def extract_modpack(modpack_path: str, extraction_path: str) -> None:
             sys.stdout.flush()
             print(" " + name_str, tag=tag_str, tag_color=tag_col, color="w")
 
+        ask_download_list(modpack, error_indices)
+
     if modpack.overrides is not None:
         print()
         print("Extracting overrides", color="c", format="bold")
@@ -124,11 +129,11 @@ def extract_modpack(modpack_path: str, extraction_path: str) -> None:
     if modpack.modpack_author:
         modpack_description += f" by {modpack.modpack_author}"
 
-    readme_path = os.path.join(extraction_path, "README_MODPACK.txt")
+    readme_path = os.path.join(extraction_path, README_NAME)
     readme_contents = (
         f"{modpack_description}\n\n"
         f"Minecraft {modpack.minecraft_version}\n"
-        f"Total resources (mods, resourcepacks and shaders) downloaded: {len(modpack.mods)}"
+        f"Total resources (mods, resourcepacks and shaders): {len(modpack.mods)}"
     )
 
     with open(readme_path, "w") as readme_file:
@@ -136,3 +141,5 @@ def extract_modpack(modpack_path: str, extraction_path: str) -> None:
 
     print()
     print("Modpack successfully downloaded", color="g", format="bold")
+
+    return modpack

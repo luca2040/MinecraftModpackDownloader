@@ -55,6 +55,27 @@ def get_minecraft_version(modpack_content: Dict) -> str:
     return f"{version} - {id}"
 
 
+def get_minecraft_version_wrapper(modpack_path: str) -> str | None:
+    """Wrapper for the get_minecraft_version function that accepts the modpack path instead of the loaded content.
+    Used to get the version before loading the pack.
+
+    Args:
+        modpack_path (str): The path to the pack's ZIP file
+
+    Returns:
+        str | None: The minecraft version as "version - loader id" or None if the modpack couldnt be loaded.
+    """
+    try:
+        json_bytes = load_file_from_zip(modpack_path, MANIFEST_FILE)
+        json_str = json_bytes.decode("utf-8")
+        manifest = json.loads(json_str)
+    except:
+        return None
+
+    version = get_minecraft_version(manifest)
+    return version if version else None  # Turn the "" into None
+
+
 class Modpack:
     """Class to store modpack-relative information, used to simplify passing those variables into functions."""
 
@@ -79,6 +100,10 @@ class Modpack:
         self.mods_folder: str = os.path.join(self.output_path, "mods")
         self.resourcepack_folder: str = os.path.join(self.output_path, "resourcepacks")
         self.shaderpack_folder: str = os.path.join(self.output_path, "shaderpacks")
+
+        self.download_html_path: str = os.path.join(
+            self.output_path, "missing_mods.html"
+        )
 
         self.folder_map: Dict[ModType, str] = {
             ModType.MOD: self.mods_folder,
@@ -188,3 +213,22 @@ class Modpack:
             mod_element.project_id,
             mod_element.file_id,
         )
+
+    def generate_download_url(self, mod_index: int) -> None:
+        """Generates the direct download url for the mod indicated by the index.
+
+        Args:
+            mod_index (int): The mod index
+        """
+        mod_element: ModElement = self[mod_index]
+        if mod_element.curseforge_url is None:
+            return
+
+        mod_element.download_url = (
+            f"{mod_element.curseforge_url}/download/{mod_element.file_id}"
+        )
+
+    def cleanup(self) -> None:
+        """Cleans up the eventual missing_mods.html file."""
+        if os.path.exists(self.download_html_path):
+            os.remove(self.download_html_path)

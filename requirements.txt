@@ -2,6 +2,8 @@ beautifulsoup4==4.13.4
 certifi==2025.8.3
 charset-normalizer==3.4.3
 idna==3.10
+Jinja2==3.1.6
+MarkupSafe==3.0.2
 print-color==0.4.6
 requests==2.32.4
 soupsieve==2.7

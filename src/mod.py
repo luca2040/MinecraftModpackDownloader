@@ -1,5 +1,5 @@
 from enum import Enum, EnumMeta
-from typing import Dict, cast
+from typing import Dict, Tuple, cast
 from print_color.print_color import Color as color_typing
 
 
@@ -41,12 +41,13 @@ class ModElement:
         # Loaded from the  modlist.html file
         self.view_name: str | None = None
         self.curseforge_url: str | None = None
+        self.download_url: str | None = None
 
 
 mod_type_names_map: Dict[ModType, str] = {
     ModType.MOD: "     MOD     ",
     ModType.RESOURCEPACK: "RESOURCE PACK",
-    ModType.SHADERPACK: "   SHADER    ",
+    ModType.SHADERPACK: "   SHADERS   ",
     ModType.DEFAULT: "  UNDEFINED  ",
 }
 
@@ -55,4 +56,11 @@ mod_type_color_map: Dict[ModType, color_typing] = {
     ModType.RESOURCEPACK: "y",
     ModType.SHADERPACK: "m",
     ModType.DEFAULT: "w",
+}
+
+mod_type_html_map: Dict[ModType, Tuple[str, str]] = {
+    ModType.MOD: ("Mod", "#1976D2"),
+    ModType.RESOURCEPACK: ("Resource pack", "#FF8F00"),
+    ModType.SHADERPACK: ("Shaders", "#7B1FA2"),
+    ModType.DEFAULT: ("Unknown", "#000000"),
 }
