@@ -7,7 +7,7 @@ import concurrent.futures
 
 from modpack import Modpack
 from utils import extract_zip_subfolder, print_progress
-from mod import mod_type_names_map, mod_type_color_map
+from mod import ModType, mod_type_names_map, mod_type_color_map
 from download_list import ask_download_list
 
 
@@ -27,14 +27,20 @@ def mod_download(modpack: Modpack, mod_index: int) -> int | None:
     Returns:
         int | None: None if the mod was successfully downloaded, otherwise the mod's index
     """
-    exists = modpack.request_filename(mod_index)
+    try:
+        exists = modpack.request_filename(mod_index)
+    except:
+        return mod_index
     if not exists:
         return mod_index
 
     for _ in range(NUM_RETRIES):
-        success = modpack.download_resource(mod_index)
-        if success:
-            return None
+        try:
+            success = modpack.download_resource(mod_index)
+            if success:
+                return None
+        except:
+            pass
 
         time.sleep(RETRY_DELAY)
 
@@ -115,7 +121,9 @@ def extract_modpack(modpack_path: str, extraction_path: str) -> Modpack | None:
             sys.stdout.flush()
             print(" " + name_str, tag=tag_str, tag_color=tag_col, color="w")
 
-        ask_download_list(modpack, error_indices)
+        not_all_undefined = any([mod.file_type != ModType.DEFAULT for mod in modpack])
+        if not_all_undefined:
+            ask_download_list(modpack, error_indices)
 
     if modpack.overrides is not None:
         print()
